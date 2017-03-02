@@ -1,10 +1,10 @@
-### Intel Compiler for Ivy-, Sandy-Bridge
+### Intel Compiler for Haswell, Broadwell...
 set(TARGET_SUFFIX               ".cpu")
 
-set(ARCH                        "-xAVX")
+set(ARCH                        "-xCORE-AVX2")
 set(SIMD_SET                    "AVX")
 set(OPENMP_FLAGS                "-qopenmp")
-set(LAPACK_FLAGS                "-mkl=parallel")
+set(ScaLAPACK_FLAGS             "-mkl=cluster")
 set(ADDITIONAL_MACRO            "")
 set(ADDITIONAL_OPTIMIZE_FLAGS   "")
 
@@ -18,13 +18,11 @@ set(CMAKE_C_COMPILER            "mpiicc")
 set(CMAKE_C_FLAGS_DEBUG         "-O2 -g")
 set(CMAKE_C_FLAGS_RELEASE       "-ansi-alias -fno-alias -O3")
 
-set(STENCIL_WITH_C             ON)
-set(ENABLE_EXPLICIT_VEC        ON)
 set(ENABLE_REDUCE_FOR_MANYCORE ON)
 
 
 ########
 # CMake Platform-specific variables
 ########
-set(CMAKE_SYSTEM_NAME "Linux" CACHE STRING "Cross-compiling for Intel Ivy-, Sandy-Bridge (AVX)")
-set(CMAKE_SYSTEM_PROCESSOR "avx")
+set(CMAKE_SYSTEM_NAME "Linux" CACHE STRING "Cross-compiling for Intel Haswell, Broadwell... (AVX2)")
+set(CMAKE_SYSTEM_PROCESSOR "avx2")
