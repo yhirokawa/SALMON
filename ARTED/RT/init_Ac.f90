@@ -16,7 +16,7 @@
 !--------10--------20--------30--------40--------50--------60--------70--------80--------90--------100-------110-------120-------130
 Subroutine init_Ac
   use Global_Variables
-  use salmon_parallel, only: nproc_group_maxwell, nproc_id_maxwell
+  use salmon_parallel, only: nproc_group_global, nproc_id_global
   use salmon_communication, only: comm_bcast, comm_is_root
   implicit none
   integer :: iter
@@ -98,14 +98,14 @@ Subroutine init_Ac
       enddo
     case('input')
       Ac_ext=0d0
-      if(comm_is_root(nproc_id_maxwell))then
+      if(comm_is_root(nproc_id_global))then
         open(899,file='input_Ac.dat')
         do iter=0,Nt
           read(899,*)Ac_ext(iter,1),Ac_ext(iter,2),Ac_ext(iter,3)
         end do
         close(899)
       end if
-      call comm_bcast(Ac_ext,nproc_group_maxwell)
+      call comm_bcast(Ac_ext,nproc_group_global)
 
     case('Asin2_cw')
 ! pulse shape : A(t)=f0/omega*sin(Pi t/T)**2 *cos (omega t+phi_CEP*2d0*pi) 
