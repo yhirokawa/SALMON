@@ -84,49 +84,80 @@ subroutine stencil_C(tpsi,htpsi,ipx_sta,ipx_end,ipy_sta,ipy_end,ipz_sta,ipz_end 
   !
   integer :: iz,iy,ix
   complex(8) :: v,w
+  complex(8) :: t(8)
 
-!$OMP parallel
-!$OMP do private(iz,iy,ix,v,w)
+!$OMP parallel do &
+!$OMP          default(none) &
+!$OMP          private(iz,iy,ix,v,w,t) &
+!$OMP          firstprivate(iz_sta,iz_end,iy_sta,iy_end,ix_sta,ix_end,lap0) &
+!$OMP          shared(lapt,nabt,idx,idy,idz,tpsi,V_local,htpsi)
   do iz=iz_sta,iz_end
   do iy=iy_sta,iy_end
+!dir$ vector nontemporal(htpsi)
   do ix=ix_sta,ix_end
 
-    v =  lapt(1,1)*(tpsi(DX(1)) + tpsi(DX(-1))) &
-        +lapt(2,1)*(tpsi(DX(2)) + tpsi(DX(-2))) &
-        +lapt(3,1)*(tpsi(DX(3)) + tpsi(DX(-3))) &
-        +lapt(4,1)*(tpsi(DX(4)) + tpsi(DX(-4)))
+    t(1) = tpsi(DX( 1))
+    t(2) = tpsi(DX( 2))
+    t(3) = tpsi(DX( 3))
+    t(4) = tpsi(DX( 4))
+    t(5) = tpsi(DX(-1))
+    t(6) = tpsi(DX(-2))
+    t(7) = tpsi(DX(-3))
+    t(8) = tpsi(DX(-4))
 
-    v =  lapt(1,2)*(tpsi(DY(1)) + tpsi(DY(-1))) &
-        +lapt(2,2)*(tpsi(DY(2)) + tpsi(DY(-2))) &
-        +lapt(3,2)*(tpsi(DY(3)) + tpsi(DY(-3))) &
-        +lapt(4,2)*(tpsi(DY(4)) + tpsi(DY(-4))) + v
+    v =  lapt(1,1)*(t(1)+t(5)) &
+        +lapt(2,1)*(t(2)+t(6)) &
+        +lapt(3,1)*(t(3)+t(7)) &
+        +lapt(4,1)*(t(4)+t(8))
 
-    v =  lapt(1,3)*(tpsi(DZ(1)) + tpsi(DZ(-1))) &
-        +lapt(2,3)*(tpsi(DZ(2)) + tpsi(DZ(-2))) &
-        +lapt(3,3)*(tpsi(DZ(3)) + tpsi(DZ(-3))) &
-        +lapt(4,3)*(tpsi(DZ(4)) + tpsi(DZ(-4))) + v
+    w =  nabt(1,1)*(t(1)-t(5)) &
+        +nabt(2,1)*(t(2)-t(6)) &
+        +nabt(3,1)*(t(3)-t(7)) &
+        +nabt(4,1)*(t(4)-t(8))
 
-    w =  nabt(1,1)*(tpsi(DX(1)) - tpsi(DX(-1))) &
-        +nabt(2,1)*(tpsi(DX(2)) - tpsi(DX(-2))) &
-        +nabt(3,1)*(tpsi(DX(3)) - tpsi(DX(-3))) &
-        +nabt(4,1)*(tpsi(DX(4)) - tpsi(DX(-4)))
+    t(1) = tpsi(DY( 1))
+    t(2) = tpsi(DY( 2))
+    t(3) = tpsi(DY( 3))
+    t(4) = tpsi(DY( 4))
+    t(5) = tpsi(DY(-1))
+    t(6) = tpsi(DY(-2))
+    t(7) = tpsi(DY(-3))
+    t(8) = tpsi(DY(-4))
 
-    w =  nabt(1,2)*(tpsi(DY(1)) - tpsi(DY(-1))) &
-        +nabt(2,2)*(tpsi(DY(2)) - tpsi(DY(-2))) &
-        +nabt(3,2)*(tpsi(DY(3)) - tpsi(DY(-3))) &
-        +nabt(4,2)*(tpsi(DY(4)) - tpsi(DY(-4))) + w
+    v =  lapt(1,2)*(t(1)+t(5)) &
+        +lapt(2,2)*(t(2)+t(6)) &
+        +lapt(3,2)*(t(3)+t(7)) &
+        +lapt(4,2)*(t(4)+t(8)) + v
 
-    w =  nabt(1,3)*(tpsi(DZ(1)) - tpsi(DZ(-1))) &
-        +nabt(2,3)*(tpsi(DZ(2)) - tpsi(DZ(-2))) &
-        +nabt(3,3)*(tpsi(DZ(3)) - tpsi(DZ(-3))) &
-        +nabt(4,3)*(tpsi(DZ(4)) - tpsi(DZ(-4))) + w
+    w =  nabt(1,2)*(t(1)-t(5)) &
+        +nabt(2,2)*(t(2)-t(6)) &
+        +nabt(3,2)*(t(3)-t(7)) &
+        +nabt(4,2)*(t(4)-t(8)) + w
+
+    t(1) = tpsi(DZ( 1))
+    t(2) = tpsi(DZ( 2))
+    t(3) = tpsi(DZ( 3))
+    t(4) = tpsi(DZ( 4))
+    t(5) = tpsi(DZ(-1))
+    t(6) = tpsi(DZ(-2))
+    t(7) = tpsi(DZ(-3))
+    t(8) = tpsi(DZ(-4))
+
+    v =  lapt(1,3)*(t(1)+t(5)) &
+        +lapt(2,3)*(t(2)+t(6)) &
+        +lapt(3,3)*(t(3)+t(7)) &
+        +lapt(4,3)*(t(4)+t(8)) + v
+
+    w =  nabt(1,3)*(t(1)-t(5)) &
+        +nabt(2,3)*(t(2)-t(6)) &
+        +nabt(3,3)*(t(3)-t(7)) &
+        +nabt(4,3)*(t(4)-t(8)) + w
 
     htpsi(ix,iy,iz) = ( V_local(ix,iy,iz) + lap0 )*tpsi(ix,iy,iz) - 0.5d0 * v - zI * w
   end do
   end do
   end do
-!$OMP end do
-!$OMP end parallel
+!$OMP end parallel do
 
   return
 end subroutine stencil_C
