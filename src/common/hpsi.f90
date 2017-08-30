@@ -80,6 +80,8 @@ SUBROUTINE hpsi_C(tpsi,htpsi,ipx_sta,ipx_end,ipy_sta,ipy_end,ipz_sta,ipz_end,Nor
                  ,ik_table,nabt,kAc,exp_ikr,ttpsi)                                  ! k vector & ttpsi
   use update_overlap_sub, only: update_overlap_C
   use stencil_sub, only: stencil_C
+  use timer, only: LOG_HPSI_STENCIL, LOG_HPSI_PSEUDO &
+                 , timer_thread_begin, timer_thread_end
   implicit none
   integer   ,intent(in)  :: ipx_sta,ipx_end,ipy_sta,ipy_end,ipz_sta,ipz_end,Norb &
                            ,ix_sta,ix_end,iy_sta,iy_end,iz_sta,iz_end,Nspin &
@@ -111,6 +113,7 @@ SUBROUTINE hpsi_C(tpsi,htpsi,ipx_sta,ipx_end,ipy_sta,ipy_end,ipz_sta,ipz_end,Nor
 
 ! stencil
 
+  call timer_thread_begin(LOG_HPSI_STENCIL)
   do iorb=1,Norb
     is = is_table(iorb)
 
@@ -130,6 +133,7 @@ SUBROUTINE hpsi_C(tpsi,htpsi,ipx_sta,ipx_end,ipy_sta,ipy_end,ipz_sta,ipz_end,Nor
                   ,idx,idy,idz,lap0+k2,lapt,k_nabt)
 
   end do
+  call timer_thread_end(LOG_HPSI_STENCIL)
 
 ! subtraction
 
@@ -148,10 +152,12 @@ SUBROUTINE hpsi_C(tpsi,htpsi,ipx_sta,ipx_end,ipy_sta,ipy_end,ipz_sta,ipz_end,Nor
 
 ! pseudopotential
 
+  call timer_thread_begin(LOG_HPSI_PSEUDO)
   call pseudo_C(tpsi,htpsi,ipx_sta,ipx_end,ipy_sta,ipy_end,ipz_sta,ipz_end,Norb &
                ,NI,Nps,Nlma,ia_table,Mps,Jxyz,uV,uVu &
                ,Nk,nproc_Mxin_mul,icomm_pseudo &
                ,ik_table,exp_ikr)
+  call timer_thread_end(LOG_HPSI_PSEUDO)
 
   return
 end subroutine hpsi_C
