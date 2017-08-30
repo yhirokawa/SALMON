@@ -3,7 +3,10 @@ set(SOURCES
    hpsi.f90
    stencil.f90
    update_overlap.f90
+   opt_stencil.c
    )
+
+include_directories(${CMAKE_SOURCE_DIR}/src/ARTED/stencil/C)
 
 add_library(${SALMON_COMMON_LIB} STATIC ${SOURCES})
 add_dependencies(${SALMON_COMMON_LIB} ${SALMON_MATH_LIB} ${SALMON_IO_LIB} ${SALMON_PARALLEL_LIB} ${SALMON_MISC_LIB})

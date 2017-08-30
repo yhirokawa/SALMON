@@ -19,7 +19,31 @@ interface hpsi
   module procedure hpsi_R,hpsi_C
 end interface hpsi
 
+  !! FIXME
+  integer, allocatable :: modx(:), mody(:), modz(:)
+
 contains
+
+  !! FIXME
+  subroutine init_hpsi(Nd,NLx,NLy,NLz)
+    implicit none
+    integer, intent(in) :: Nd,NLx,NLy,NLz
+    integer :: ix,iy,iz
+
+    allocate(modx(0:NLx*2+Nd-1))
+    allocate(mody(0:NLy*2+Nd-1))
+    allocate(modz(0:NLz*2+Nd-1))
+
+    do ix=0,NLx*2+Nd-1
+      modx(ix) = mod(ix,NLx)
+    end do
+    do iy=0,NLy*2+Nd-1
+      mody(iy) = mod(iy,NLy)
+    end do
+    do iz=0,NLz*2+Nd-1
+      modz(iz) = mod(iz,NLz)
+    end do
+  end subroutine
 
 !===================================================================================================================================
 
@@ -128,9 +152,15 @@ SUBROUTINE hpsi_C(tpsi,htpsi,ipx_sta,ipx_end,ipy_sta,ipy_end,ipz_sta,ipz_end,Nor
       k_nabt = 0d0
     end if
 
+#ifdef ARTED_EXPLICIT_VECTORIZATION
+    call opt_stencil_C(tpsi(:,:,:,iorb),htpsi(:,:,:,iorb),ipx_sta,ipx_end,ipy_sta,ipy_end,ipz_sta,ipz_end &
+                  ,V_local(:,:,:,is),ix_sta,ix_end,iy_sta,iy_end,iz_sta,iz_end &
+                  ,modx,mody,modz,lap0+k2,lapt,k_nabt)
+#else
     call stencil_C(tpsi(:,:,:,iorb),htpsi(:,:,:,iorb),ipx_sta,ipx_end,ipy_sta,ipy_end,ipz_sta,ipz_end &
                   ,V_local(:,:,:,is),ix_sta,ix_end,iy_sta,iy_end,iz_sta,iz_end &
                   ,idx,idy,idz,lap0+k2,lapt,k_nabt)
+#endif
 
   end do
   call timer_thread_end(LOG_HPSI_STENCIL)

@@ -101,6 +101,7 @@ contains
 
   subroutine opt_vars_initialize_p2
     use global_variables
+    use hpsi_sub, only: init_hpsi
     implicit none
 
     integer :: ix,iy,iz
@@ -162,6 +163,8 @@ contains
     do iz=0,NLz*2+Nd-1
       modz(iz) = mod(iz,NLz)
     end do
+
+    call init_hpsi(Nd,NLz,NLy,NLx)
 
 #ifdef ARTED_STENCIL_PADDING
     call init_for_padding
