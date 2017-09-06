@@ -119,87 +119,20 @@ end subroutine R_sendrecv
 
 subroutine C_sendrecv(tpsi)
   use salmon_communication, only: comm_proc_null, comm_start_all, comm_wait_all
-  use persistent_comm,      only: ireq => nreqs_corbital, &
-                                  nrange => nrange_groupob, nshape => nshape_groupob
-  use pack_unpack
+  use persistent_comm,      only: nreqs => nreqs_corbital, cbuffer_orbital, halo_exchange_dcomplex_3d
   implicit none
   complex(8) :: tpsi(mg_sta(1)-Nd:mg_end(1)+Nd,mg_sta(2)-Nd:mg_end(2)+Nd, &
                      mg_sta(3)-Nd:mg_end(3)+Nd)
-  integer :: iup,idw,jup,jdw,kup,kdw
+  integer :: itargets(6)
   
-  iup=iup_array(1)
-  idw=idw_array(1)
-  jup=jup_array(1)
-  jdw=jdw_array(1)
-  kup=kup_array(1)
-  kdw=kdw_array(1)
-  
-  !send from idw to iup
-  if(iup/=comm_proc_null)then
-    call pack_data(nshape(1:3), nrange(1:3,1), tpsi, scmatbox1_x_3d)
-  end if
-  call comm_start_all(ireq(1:2))
+  itargets(1)=iup_array(1)
+  itargets(2)=idw_array(1)
+  itargets(3)=jup_array(1)
+  itargets(4)=jdw_array(1)
+  itargets(5)=kup_array(1)
+  itargets(6)=kdw_array(1)
 
-  !send from iup to idw
-  if(idw/=comm_proc_null)then
-    call pack_data(nshape(1:3), nrange(1:3,2), tpsi, scmatbox3_x_3d)
-  end if
-  call comm_start_all(ireq(3:4))
-
-  !send from jdw to jup
-  if(jup/=comm_proc_null)then
-    call pack_data(nshape(1:3), nrange(1:3,3), tpsi, scmatbox1_y_3d)
-  end if
-  call comm_start_all(ireq(5:6))
-
-  !send from jup to jdw
-  if(jdw/=comm_proc_null)then
-    call pack_data(nshape(1:3), nrange(1:3,4), tpsi, scmatbox3_y_3d)
-  end if
-  call comm_start_all(ireq(7:8))
-
-  !send from kdw to kup
-  if(kup/=comm_proc_null)then
-    call pack_data(nshape(1:3), nrange(1:3,5), tpsi, scmatbox1_z_3d)
-  end if
-  call comm_start_all(ireq(9:10))
-
-  !send from kup to kdw
-  if(kdw/=comm_proc_null)then
-    call pack_data(nshape(1:3), nrange(1:3,6), tpsi, scmatbox3_z_3d)
-  end if
-  call comm_start_all(ireq(11:12))
-
-
-  call comm_wait_all(ireq(1:2))
-  if(idw/=comm_proc_null)then
-    call unpack_data(nshape(1:3), nrange(1:3,7), scmatbox2_x_3d, tpsi)
-  end if
-
-  call comm_wait_all(ireq(3:4))
-  if(iup/=comm_proc_null)then
-    call unpack_data(nshape(1:3), nrange(1:3,8), scmatbox4_x_3d, tpsi)
-  end if
-
-  call comm_wait_all(ireq(5:6))
-  if(jdw/=comm_proc_null)then
-    call unpack_data(nshape(1:3), nrange(1:3,9), scmatbox2_y_3d, tpsi)
-  end if
-
-  call comm_wait_all(ireq(7:8))
-  if(jup/=comm_proc_null)then
-    call unpack_data(nshape(1:3), nrange(1:3,10), scmatbox4_y_3d, tpsi)
-  end if
-
-  call comm_wait_all(ireq(9:10))
-  if(kdw/=comm_proc_null)then
-    call unpack_data(nshape(1:3), nrange(1:3,11), scmatbox2_z_3d, tpsi)
-  end if
-
-  call comm_wait_all(ireq(11:12))
-  if(kup/=comm_proc_null)then
-    call unpack_data(nshape(1:3), nrange(1:3,12), scmatbox4_z_3d, tpsi)
-  end if
+  call halo_exchange_dcomplex_3d(nreqs,itargets,Nd,mg_sta,mg_num,mg_end,cbuffer_orbital,tpsi)
   
 end subroutine C_sendrecv
 

@@ -16,6 +16,36 @@
 module persistent_comm
   use pack_unpack, only: array_shape
 
+  type halo_rbuffer_3d
+    real(8), allocatable :: iup_send(:,:,:), &
+                            iup_recv(:,:,:), &
+                            jup_send(:,:,:), &
+                            jup_recv(:,:,:), &
+                            kup_send(:,:,:), &
+                            kup_recv(:,:,:), &
+                            idw_send(:,:,:), &
+                            idw_recv(:,:,:), &
+                            jdw_send(:,:,:), &
+                            jdw_recv(:,:,:), &
+                            kdw_send(:,:,:), &
+                            kdw_recv(:,:,:)
+  end type
+
+  type halo_cbuffer_3d
+    complex(8), allocatable :: iup_send(:,:,:), &
+                               iup_recv(:,:,:), &
+                               jup_send(:,:,:), &
+                               jup_recv(:,:,:), &
+                               kup_send(:,:,:), &
+                               kup_recv(:,:,:), &
+                               idw_send(:,:,:), &
+                               idw_recv(:,:,:), &
+                               jdw_send(:,:,:), &
+                               jdw_recv(:,:,:), &
+                               kdw_send(:,:,:), &
+                               kdw_recv(:,:,:)
+  end type
+
   integer,public,allocatable :: nreqs_rh(:,:)
   integer,public,allocatable :: nreqs_rorbital(:),nreqs_corbital(:)
   integer,public,allocatable :: nreqs_rgroupob(:),nreqs_cgroupob(:)
@@ -23,7 +53,10 @@ module persistent_comm
   type(array_shape),public,allocatable :: nshape_orbital(:)
   type(array_shape),public,allocatable :: nshape_groupob(:),nrange_groupob(:,:)
 
+  type(halo_cbuffer_3d),public :: cbuffer_orbital
+
   public :: init_persistent_requests
+  public :: halo_exchange_dcomplex_3d
 
 private
 contains
@@ -78,6 +111,21 @@ contains
     nreqs_corbital(10) = comm_recv_init(scmatbox2_z_3d,kdw,7,icomm)
     nreqs_corbital(11) = comm_send_init(scmatbox3_z_3d,kdw,8,icomm)
     nreqs_corbital(12) = comm_recv_init(scmatbox4_z_3d,kup,8,icomm)
+
+
+    allocate(cbuffer_orbital%iup_send(Nd,mg_num(2),mg_num(3)))
+    allocate(cbuffer_orbital%jup_send(mg_num(1),Nd,mg_num(3)))
+    allocate(cbuffer_orbital%kup_send(mg_num(1),mg_num(2),Nd))
+    allocate(cbuffer_orbital%iup_recv(Nd,mg_num(2),mg_num(3)))
+    allocate(cbuffer_orbital%jup_recv(mg_num(1),Nd,mg_num(3)))
+    allocate(cbuffer_orbital%kup_recv(mg_num(1),mg_num(2),Nd))
+    allocate(cbuffer_orbital%idw_send(Nd,mg_num(2),mg_num(3)))
+    allocate(cbuffer_orbital%jdw_send(mg_num(1),Nd,mg_num(3)))
+    allocate(cbuffer_orbital%kdw_send(mg_num(1),mg_num(2),Nd))
+    allocate(cbuffer_orbital%idw_recv(Nd,mg_num(2),mg_num(3)))
+    allocate(cbuffer_orbital%jdw_recv(mg_num(1),Nd,mg_num(3)))
+    allocate(cbuffer_orbital%kdw_recv(mg_num(1),mg_num(2),Nd))
+ 
 
     allocate(nshape_orbital(3))
     nshape_orbital(1) = create_array_shape(mg_sta(1)-Nd, mg_end(1)+Nd)
@@ -235,5 +283,161 @@ contains
     ireqs(10) = comm_recv_init(rmatbox2_z_h,kdw,7,icomm)
     ireqs(11) = comm_send_init(rmatbox3_z_h,kdw,8,icomm)
     ireqs(12) = comm_recv_init(rmatbox4_z_h,kup,8,icomm)
+  end subroutine
+
+
+  subroutine halo_exchange_dcomplex_3d(nreqs,itargets,ishadow_region,istart_indecies,isend_sizes,iend_indecies,buffers,domain)
+    use salmon_communication, only: comm_proc_null, comm_start_all, comm_wait_all
+    use pack_unpack, only: copy_data
+    implicit none
+    integer,intent(in) :: nreqs(12)          ! iup_send_req,iup_recv_req,idw_send_req,...
+    integer,intent(in) :: itargets(6)        ! iup,idw,jup,jdw,kup,kdw
+    integer,intent(in) :: ishadow_region
+    integer,intent(in) :: istart_indecies(3)
+    integer,intent(in) :: isend_sizes(3)
+    integer,intent(in) :: iend_indecies(3)
+    type(halo_cbuffer_3d),intent(inout) :: buffers
+    complex(8) :: domain(istart_indecies(1)-ishadow_region:iend_indecies(1)+ishadow_region, &
+                         istart_indecies(2)-ishadow_region:iend_indecies(2)+ishadow_region, &
+                         istart_indecies(3)-ishadow_region:iend_indecies(3)+ishadow_region) ! (x,y,z)
+
+
+    ! send iup/idw
+    !=====================================================================-
+    if(itargets(1)/=comm_proc_null)then
+      call copy_data( &
+        domain(iend_indecies(1)-ishadow_region+1:iend_indecies(1),                     &
+               istart_indecies(2)               :istart_indecies(2)+isend_sizes(2)-1,  &
+               istart_indecies(3)               :istart_indecies(3)+isend_sizes(3)-1), &
+        buffers%iup_send &
+      )
+    end if
+    call comm_start_all(nreqs(1:2))
+
+    if(itargets(2)/=comm_proc_null)then
+      call copy_data( &
+        domain(istart_indecies(1):istart_indecies(1)+ishadow_region-1,  &
+               istart_indecies(2):istart_indecies(2)+isend_sizes(2)-1,  &
+               istart_indecies(3):istart_indecies(3)+isend_sizes(3)-1), &
+        buffers%idw_send &
+      )
+    end if
+    call comm_start_all(nreqs(3:4))
+
+
+    ! send jup/jdw
+    !=====================================================================-
+    if(itargets(3)/=comm_proc_null)then
+      call copy_data( &
+        domain(istart_indecies(1)               :istart_indecies(1)+isend_sizes(1)-1,  &
+               iend_indecies(2)-ishadow_region+1:iend_indecies(2),                     &
+               istart_indecies(3)               :istart_indecies(3)+isend_sizes(3)-1), &
+        buffers%jup_send &
+      )
+    end if
+    call comm_start_all(nreqs(5:6))
+
+    if(itargets(4)/=comm_proc_null)then
+      call copy_data( &
+        domain(istart_indecies(1):istart_indecies(1)+isend_sizes(1)-1,  &
+               istart_indecies(2):istart_indecies(2)+ishadow_region-1,  &
+               istart_indecies(3):istart_indecies(3)+isend_sizes(3)-1), &
+        buffers%jdw_send &
+      )
+    end if
+    call comm_start_all(nreqs(7:8))
+
+
+    ! send kup/kdw
+    !=====================================================================-
+    if(itargets(5)/=comm_proc_null)then
+      call copy_data( &
+        domain(istart_indecies(1)               :istart_indecies(1)+isend_sizes(1)-1, &
+               istart_indecies(2)               :istart_indecies(2)+isend_sizes(2)-1, &
+               iend_indecies(3)-ishadow_region+1:iend_indecies(3)),                   &
+        buffers%kup_send &
+      )
+    end if
+    call comm_start_all(nreqs(9:10))
+
+    !send from itargets(5) to itargets(6)
+    if(itargets(6)/=comm_proc_null)then
+      call copy_data( &
+        domain(istart_indecies(1):istart_indecies(1)+isend_sizes(1)-1,  &
+               istart_indecies(2):istart_indecies(2)+isend_sizes(2)-1,  &
+               istart_indecies(3):istart_indecies(3)+ishadow_region-1), &
+        buffers%kdw_send &
+      )
+    end if
+    call comm_start_all(nreqs(11:12))
+
+
+    ! recv iup/idw
+    !=====================================================================-
+    call comm_wait_all(nreqs(1:2))
+    if(itargets(2)/=comm_proc_null)then
+      call copy_data( &
+        buffers%iup_recv, &
+        domain(istart_indecies(1)-ishadow_region:istart_indecies(1),                  &
+               istart_indecies(2)               :istart_indecies(2)+isend_sizes(2)-1, &
+               istart_indecies(3)               :istart_indecies(3)+isend_sizes(3)-1) &
+      )
+    end if
+
+    call comm_wait_all(nreqs(3:4))
+    if(itargets(1)/=comm_proc_null)then
+      call copy_data( &
+        buffers%idw_recv, &
+        domain(iend_indecies(1)+1:iend_indecies(1)+ishadow_region,     &
+               istart_indecies(2):istart_indecies(2)+isend_sizes(2)-1, &
+               istart_indecies(3):istart_indecies(3)+isend_sizes(3)-1) &
+      )
+    end if
+
+
+    ! recv jup/jdw
+    !=====================================================================-
+    call comm_wait_all(nreqs(5:6))
+    if(itargets(4)/=comm_proc_null)then
+      call copy_data( &
+        buffers%jup_recv, &
+        domain(istart_indecies(1)               :istart_indecies(1)+isend_sizes(1)-1, &
+               istart_indecies(2)-ishadow_region:istart_indecies(2),                  &
+               istart_indecies(3)               :istart_indecies(3)+isend_sizes(3)-1) &
+      )
+    end if
+
+    call comm_wait_all(nreqs(7:8))
+    if(itargets(3)/=comm_proc_null)then
+      call copy_data( &
+        buffers%jdw_recv, &
+        domain(istart_indecies(1):istart_indecies(1)+isend_sizes(1)-1, &
+               iend_indecies(2)+1:iend_indecies(2)+ishadow_region,     &
+               istart_indecies(3):istart_indecies(3)+isend_sizes(3)-1) &
+      )
+    end if
+
+
+    ! recv kup/kdw
+    !=====================================================================-
+    call comm_wait_all(nreqs(9:10))
+    if(itargets(6)/=comm_proc_null)then
+      call copy_data( &
+        buffers%kup_recv, &
+        domain(istart_indecies(1)               :istart_indecies(1)+isend_sizes(1)-1, &
+               istart_indecies(2)               :istart_indecies(2)+isend_sizes(2)-1, &
+               istart_indecies(3)-ishadow_region:istart_indecies(3))                  &
+      )
+    end if
+
+    call comm_wait_all(nreqs(11:12))
+    if(itargets(5)/=comm_proc_null)then
+      call copy_data( &
+        buffers%kdw_recv, &
+        domain(istart_indecies(1):istart_indecies(1)+isend_sizes(1)-1, &
+               istart_indecies(2):istart_indecies(2)+isend_sizes(2)-1, &
+               iend_indecies(3)+1:iend_indecies(3)+ishadow_region)     &
+      )
+    end if
   end subroutine
 end module
