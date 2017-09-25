@@ -184,7 +184,12 @@ Subroutine Exc_Cor_TBmBJ(GS_RT)
      c=1d0
   end select
 
-
+!$omp parallel do &
+!$omp   default(none) &
+!$omp   shared(NL,rho,Eexc,Vexc,rho_s,tau_s,j_s,grho_s,lrho_s) &
+!$omp   firstprivate(c) &
+!$omp   private(i,trho,rs,rhos,ec,dec_drhoa,dec_drhob,tau_s_jrho,D_s_jrho) &
+!$omp   private(Q_s,rhs,x_s,b_s,Vx_BR,Vx_MBJ)
   do i=1,NL
     tau_s_jrho=tau_s(i)-(j_s(i,1)**2+j_s(i,2)**2+j_s(i,3)**2)/rho_s(i)/2
     D_s_jrho=2*tau_s_jrho-0.25d0*(grho_s(i,1)**2+grho_s(i,2)**2+grho_s(i,3)**2)/rho_s(i)
@@ -205,6 +210,7 @@ Subroutine Exc_Cor_TBmBJ(GS_RT)
     Eexc(i)=Eexc(i)+ec
     Eexc(i)=Eexc(i)*trho
   enddo
+!$omp end parallel do
   return
 End Subroutine Exc_Cor_TBmBJ
 !--------10--------20--------30--------40--------50--------60--------70--------80--------90--------100-------110-------120-------130
@@ -1039,20 +1045,28 @@ Subroutine rho_j_tau(GS_RT,rho_s,tau_s,j_s,grho_s,lrho_s)
     call err_finalize('error in meta GGA')
   end if
 
-  tau_s_l(:) = tau_s_l_omp(:,0)
-  j_s_l(:,1) = j_s_l_omp(:,1,0)
-  j_s_l(:,2) = j_s_l_omp(:,2,0)
-  j_s_l(:,3) = j_s_l_omp(:,3,0)
+
+!$omp parallel private(thr_id,i)
+!$omp do
+  do i=1,NL
+    tau_s_l(i) = tau_s_l_omp(i,0)
+    j_s_l(i,1) = j_s_l_omp(i,1,0)
+    j_s_l(i,2) = j_s_l_omp(i,2,0)
+    j_s_l(i,3) = j_s_l_omp(i,3,0)
+  end do
+!$omp end do
 
   do thr_id = 1, NUMBER_THREADS-1
-!$omp parallel do    
+!$omp do
     do i=1,NL
       tau_s_l(i) = tau_s_l(i) + tau_s_l_omp(i,thr_id)
       j_s_l(i,1) = j_s_l(i,1) + j_s_l_omp(i,1,thr_id)
       j_s_l(i,2) = j_s_l(i,2) + j_s_l_omp(i,2,thr_id)
       j_s_l(i,3) = j_s_l(i,3) + j_s_l_omp(i,3,thr_id)
     end do
+!$omp end do nowait
   end do
+!$omp end parallel
 
   call comm_summation(tau_s_l,tau_s,NL,nproc_group_tdks)
   call comm_summation(j_s_l,j_s,NL*3,nproc_group_tdks)
