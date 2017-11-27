@@ -128,7 +128,7 @@ contains
     real(8) :: k2
     real(8) :: k2lap0_2(ikb_s:ikb_e)
     real(8) :: nabt(12, ikb_s:ikb_e)
-!$acc data pcopy(tpsi) create(k2lap0_2,nabt)
+!$acc data pcopy(tpsi) pcopyin(lapt) create(k2lap0_2,nabt)
 
     NVTX_BEG('hpsi1_LBLK(): hpsi1_RT_stencil', 4)
     LOG_BEG(LOG_HPSI_STENCIL)
@@ -143,7 +143,15 @@ contains
       nabt( 9:12,ikb)=kAc(ik,3)*nabz(1:4)
     enddo
 !$acc end kernels
+#ifdef USE_CUDA
+!$acc host_data use_device(k2lap0_2, Vloc, lapt, nabt, tpsi, htpsi, modx, mody, modz)
+    call hpsi1_RT_stencil_gpu( k2lap0_2(:),Vloc,lapt,nabt(:,:),tpsi(:,:),htpsi(:,:), ikb_s,ikb_e,&
+      PNLx,PNLy,PNLz, NLx,NLy,NLz, modx,mody,modz)
+!$acc end host_data
+#else
     call hpsi1_RT_stencil_LBLK(k2lap0_2(:),Vloc,lapt,nabt(:,:),tpsi(:,:),htpsi(:,:), ikb_s,ikb_e)
+#endif
+
     LOG_END(LOG_HPSI_STENCIL)
     NVTX_END()
 

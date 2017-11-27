@@ -13,9 +13,10 @@ set(SOURCES_COMPILER_VEC
     )
 set(SOURCES_ACC
     F90/acc/current.f90
-    F90/acc/hpsi.f90
     F90/acc/total_energy.f90
     )
+set(SOURCE_ACC_HPSI  F90/acc/hpsi.f90)
+set(SOURCE_CUDA_HPSI CUDA/hpsi_stencil_cuda.cu)
 
 
 ### Sources for hpsi
@@ -43,10 +44,19 @@ else ()
 endif ()
 
 if (ENABLE_OPENACC)
-  set(SOURCES ${SOURCES_ACC} ${SOURCE_HPSI_COMPILER_VEC} ${SOURCES_COMPILER_VEC})
+  if (ENABLE_CUDA)
+    find_package(CUDA REQUIRED)
+    set(SOURCES ${SOURCES_ACC} ${SOURCE_CUDA_HPSI} ${SOURCE_HPSI_COMPILER_VEC} ${SOURCES_COMPILER_VEC})
+  else ()
+    set(SOURCES ${SOURCES_ACC} ${SOURCE_ACC_HPSI}  ${SOURCE_HPSI_COMPILER_VEC} ${SOURCES_COMPILER_VEC})
+  endif ()
 else ()
   set(SOURCES ${SOURCES_OMP})
 endif ()
 
-add_library(${ARTED_STENCIL_LIB} STATIC ${SOURCES})
+if (ENABLE_CUDA)
+  cuda_add_library(${ARTED_STENCIL_LIB} STATIC ${SOURCES})
+else ()
+  add_library(${ARTED_STENCIL_LIB} STATIC ${SOURCES})
+endif ()
 add_dependencies(${ARTED_STENCIL_LIB} ${ARTED_MODULE_LIB})

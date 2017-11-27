@@ -9,7 +9,7 @@ include(${CMAKE_SOURCE_DIR}/cmakefiles/setup.cmake)
 include(${CMAKE_SOURCE_DIR}/cmakefiles/get_git_info.cmake)
 
 ### Project settings
-project(SALMON Fortran C)
+project(SALMON Fortran C CXX)
 
 # Bulid options
 ## Library
@@ -164,6 +164,10 @@ if (OPT_STENCIL)
   add_definitions_if(LOOP_BLOCKING   -DARTED_STENCIL_ENABLE_LOOP_BLOCKING)
 else ()
   add_definitions(-DARTED_STENCIL_ORIGIN)
+endif ()
+
+if (ENABLE_CUDA)
+  add_definitions(-DUSE_CUDA)
 endif ()
 
 add_definitions("${ADDITIONAL_MACRO}")
