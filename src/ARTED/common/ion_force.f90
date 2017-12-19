@@ -48,13 +48,13 @@ contains
     complex(8),intent(inout) :: zutmp(NL,zu_NB,NK_s:NK_e)
 
     integer      :: ia,ib,ilma,ik,ix,iy,iz,n,j,i
-    integer      :: ix_s,ix_e,iy_s,iy_e,iz_s,iz_e
-    integer,allocatable:: idx(:),idy(:),idz(:)
     real(8)      :: rab(3),rab2,Gvec(3),G2,Gd
+    real(8)      :: ftmp_l1(3,NI),ftmp_l2(3,NI)
     real(8)      :: ftmp_l(3,NI),ftmp_l_kl(3,NI,NK_s:NK_e)
-    real(8)      :: FionR(3,NI), FionG(3,NI),nabt_wrk(4,3)
+    real(8)      :: FionR(3,NI), FionG(3,NI)
     complex(8)   :: uVpsi,duVpsi(3)
-    complex(8)   :: dzudr(3,NL,NB,NK_s:NK_e),dzudrzu(3),dzuekrdr(3)
+    complex(8)   :: dzudr(3,NL,NB,NK_s:NK_e),dzuekrdr(3)
+    real(8)      :: dzudrzu(3)
 
     !flag_use_grad_wf_on_force is given in Gloval_Variable
     !if .true.   use gradient of wave-function (better accuracy)
@@ -123,101 +123,62 @@ contains
 
     ! Use gradient of wave-func for calculating force on ions
 
-    !(prepare gradient of w.f.)
-    ix_s = 0  ;  ix_e = NLx-1
-    iy_s = 0  ;  iy_e = NLy-1
-    iz_s = 0  ;  iz_e = NLz-1
+    ftmp_l1= 0.d0
+    ftmp_l2= 0.d0
+!$omp parallel default(none) reduction(+:ftmp_l1,ftmp_l2) &
+!$omp          shared(zutmp,dzudr,nabx,naby,nabz,vpsl_ia,occ,a_tbl,jxyz,uv,kac,ekr_omp,mps,iuv) &
+!$omp          firstprivate(nk_s,nk_e,nboccmax,ni,nl,hxyz,nlma,nlx,nly,nlz)
 
-    allocate(idx(ix_s-4:ix_e+4),idy(iy_s-4:iy_e+4),idz(iz_s-4:iz_e+4))
-    do i=ix_s-4,ix_e+4
-      idx(i) = mod(NLx+i,NLx)
-    end do
-    do i=iy_s-4,iy_e+4
-      idy(i) = mod(NLy+i,NLy)
-    end do
-    do i=iz_s-4,iz_e+4
-      idz(i) = mod(NLz+i,NLz)
-    end do
-
-    nabt_wrk(1:4,1) = nabx(1:4)
-    nabt_wrk(1:4,2) = naby(1:4)
-    nabt_wrk(1:4,3) = nabz(1:4)
-
-!$omp parallel do collapse(2) default(none) &
-!$omp          private(ik,ib) &
-!$omp          shared(zutmp,dzudr,idx,idy,idz,nabt_wrk) &
-!$omp          firstprivate(ix_s,ix_e,iy_s,iy_e,iz_s,iz_e,nk_s,nk_e,nboccmax)
+!$omp do collapse(2) &
+!$omp    private(ik,ib) &
+!$omp    private(ia,j,i,ilma,uVpsi,duVpsi,dzuekrdr)
     do ik=NK_s,NK_e
     do ib=1,NBoccmax
-       call stencil_C_zu(zutmp(:,ib,ik) &
-       &                ,dzudr(:,:,ib,ik) &
-       &                ,ix_s,ix_e,iy_s,iy_e,iz_s,iz_e &
-       &                ,idx,idy,idz,nabt_wrk)
-    enddo
-    enddo
-!$omp end parallel do
+      call stencil_C_zu(zutmp(:,ib,ik) &
+      &                ,dzudr(:,:,ib,ik) &
+      &                ,0,NLx-1,0,NLy-1,0,NLz-1 &
+      &                ,nabx,naby,nabz)
+
+      !Non-Local pseudopotential term using gradient of w.f.
+      do ilma=1,Nlma
+        ia=a_tbl(ilma)
+
+        uVpsi    =0.d0
+        duVpsi(:)=0.d0
+        do j=1,Mps(ia)
+          i=Jxyz(j,ia)
+          dzuekrdr(:) = dzudr(:,i,ib,ik) + zI * kAc(ik,:) * zutmp(i,ib,ik)
+          uVpsi       = uVpsi + uV(j,ilma) * zutmp(i,ib,ik) * ekr_omp(j,ia,ik)
+          duVpsi(:)   = duVpsi(:) + conjg(dzuekrdr(:) * ekr_omp(j,ia,ik)) * uV(j,ilma)
+        end do
+        uVpsi    =uVpsi    *Hxyz
+        duVpsi(:)=duVpsi(:)*Hxyz
+
+        ftmp_l2(:,ia) = ftmp_l2(:,ia) &
+          &             -2d0* dble(uVpsi*duVpsi(:))*iuV(ilma)*occ(ib,ik)
+      end do
+    end do
+    end do
+!$omp end do
 
     !Force from Vlocal with wave-func gradient --
-    ftmp_l_kl= 0.d0
-!$omp parallel private(ia) reduction(+:ftmp_l_kl)
 !$omp do private(ik,ib,i,ia,dzudrzu) collapse(3)
     do ik=NK_s,NK_e
     do ib=1,NBoccmax
     do i=1,NL
-
-       dzudrzu(:)=conjg(dzudr(:,i,ib,ik))*zutmp(i,ib,ik)
-       do ia=1,NI
-          ftmp_l_kl(:,ia,ik) = ftmp_l_kl(:,ia,ik) &
-          &  -2d0* dble(dzudrzu(:)*Vpsl_ia(i,ia))*occ(ib,ik)*Hxyz
-       enddo
-
-    enddo
-    enddo
-    enddo
-!$omp end do
-!$omp end parallel
-
-    call timer_begin(LOG_ALLREDUCE)
-    ftmp_l(:,:) = 0.d0
-    do ik=NK_s,NK_e
-      ftmp_l(:,:)=ftmp_l(:,:)+ftmp_l_kl(:,:,ik)
+      dzudrzu(:)=dble(conjg(dzudr(:,i,ib,ik))*zutmp(i,ib,ik))*occ(ib,ik)*Hxyz*(-2.d0)
+      do ia=1,NI 
+        ftmp_l1(:,ia) = ftmp_l1(:,ia) + dzudrzu(:)*Vpsl_ia(i,ia)
+      end do
     end do
-    call comm_summation(ftmp_l,Floc,3*NI,nproc_group_tdks)
-    call timer_end(LOG_ALLREDUCE)
-
-
-    !Non-Local pseudopotential term using gradient of w.f.
-    ftmp_l_kl= 0.d0
-!$omp parallel private(ia) reduction(+:ftmp_l_kl)
-!$omp do private(ik,j,i,ib,ilma,uVpsi,duVpsi,dzuekrdr) collapse(2)
-    do ik=NK_s,NK_e
-    do ib=1,NBoccmax
-       do ilma=1,Nlma
-          ia=a_tbl(ilma)
-           uVpsi   =0.d0
-          duVpsi(:)=0.d0
-          do j=1,Mps(ia)
-             i=Jxyz(j,ia)
-            uVpsi      =uVpsi + uV(j,ilma)*ekr_omp(j,ia,ik)*zutmp(i,ib,ik)
-            dzuekrdr(:)=(dzudr(:,i,ib,ik)+zI*kAc(ik,:)*zutmp(i,ib,ik))*ekr_omp(j,ia,ik)
-            duVpsi(:)  =duVpsi(:) + conjg(dzuekrdr(:))*uV(j,ilma)
-          end do
-          uVpsi    =uVpsi    *Hxyz
-          duVpsi(:)=duVpsi(:)*Hxyz
-          ftmp_l_kl(:,ia,ik) = ftmp_l_kl(:,ia,ik) &
-          &                  -2d0* dble(uVpsi*duVpsi(:))*iuV(ilma)*occ(ib,ik)
-       end do
     end do
     end do
 !$omp end do
 !$omp end parallel
 
     call timer_begin(LOG_ALLREDUCE)
-    ftmp_l(:,:) = 0.d0
-    do ik=NK_s,NK_e
-      ftmp_l(:,:)=ftmp_l(:,:)+ftmp_l_kl(:,:,ik)
-    end do
-    call comm_summation(ftmp_l,Fnl,3*NI,nproc_group_tdks)
+    call comm_summation(ftmp_l1,Floc,3*NI,nproc_group_tdks)
+    call comm_summation(ftmp_l2,Fnl,3*NI,nproc_group_tdks)
     call timer_end(LOG_ALLREDUCE)
 
 
@@ -288,41 +249,46 @@ contains
   end subroutine
 
 !Gradient of wave function (du/dr) with nine points formura
-# define DX(dt) iz,iy,idx(ix+(dt))
-# define DY(dt) iz,idy(iy+(dt)),ix
-# define DZ(dt) idz(iz+(dt)),iy,ix
+# define DX(dt) iz,iy,modx(ix+(dt)+NLx)
+# define DY(dt) iz,mody(iy+(dt)+NLy),ix
+# define DZ(dt) modz(iz+(dt)+NLz),iy,ix
   subroutine stencil_C_zu(zu0,dzu0dr &
   &                      ,ix_s,ix_e,iy_s,iy_e,iz_s,iz_e &
-  &                      ,idx,idy,idz,nabt)
+  &                      ,nabx,naby,nabz)
+  use opt_variables, only: modx, mody, modz
   implicit none
   integer   ,intent(in)  :: ix_s,ix_e,iy_s,iy_e,iz_s,iz_e
-  integer   ,intent(in)  :: idx(ix_s-4:ix_e+4),idy(iy_s-4:iy_e+4),idz(iz_s-4:iz_e+4)
-  real(8)   ,intent(in)  :: nabt(4,3)
+  real(8)   ,intent(in)  :: nabx(4),naby(4),nabz(4)
   complex(8),intent(in)  :: zu0(iz_s:iz_e,iy_s:iy_e,ix_s:ix_e)
   complex(8),intent(out) :: dzu0dr(3,iz_s:iz_e,iy_s:iy_e,ix_s:ix_e)
   !
   integer :: iz,iy,ix
+  integer :: nlx,nly,nlz
   complex(8) :: w(3)
+
+  nlx = ix_e - ix_s + 1
+  nly = iy_e - iy_s + 1
+  nlz = iz_e - iz_s + 1
 
   do ix=ix_s,ix_e
   do iy=iy_s,iy_e
 !dir$ vector nontemporal(dzu0dr)
   do iz=iz_s,iz_e
 
-    w(1) =  nabt(1,1)*(zu0(DX(1)) - zu0(DX(-1))) &
-           +nabt(2,1)*(zu0(DX(2)) - zu0(DX(-2))) &
-           +nabt(3,1)*(zu0(DX(3)) - zu0(DX(-3))) &
-           +nabt(4,1)*(zu0(DX(4)) - zu0(DX(-4)))
+    w(1) =  nabx(1)*(zu0(DX(1)) - zu0(DX(-1))) &
+           +nabx(2)*(zu0(DX(2)) - zu0(DX(-2))) &
+           +nabx(3)*(zu0(DX(3)) - zu0(DX(-3))) &
+           +nabx(4)*(zu0(DX(4)) - zu0(DX(-4)))
 
-    w(2) =  nabt(1,2)*(zu0(DY(1)) - zu0(DY(-1))) &
-           +nabt(2,2)*(zu0(DY(2)) - zu0(DY(-2))) &
-           +nabt(3,2)*(zu0(DY(3)) - zu0(DY(-3))) &
-           +nabt(4,2)*(zu0(DY(4)) - zu0(DY(-4)))
+    w(2) =  naby(1)*(zu0(DY(1)) - zu0(DY(-1))) &
+           +naby(2)*(zu0(DY(2)) - zu0(DY(-2))) &
+           +naby(3)*(zu0(DY(3)) - zu0(DY(-3))) &
+           +naby(4)*(zu0(DY(4)) - zu0(DY(-4)))
 
-    w(3) =  nabt(1,3)*(zu0(DZ(1)) - zu0(DZ(-1))) &
-           +nabt(2,3)*(zu0(DZ(2)) - zu0(DZ(-2))) &
-           +nabt(3,3)*(zu0(DZ(3)) - zu0(DZ(-3))) &
-           +nabt(4,3)*(zu0(DZ(4)) - zu0(DZ(-4)))
+    w(3) =  nabz(1)*(zu0(DZ(1)) - zu0(DZ(-1))) &
+           +nabz(2)*(zu0(DZ(2)) - zu0(DZ(-2))) &
+           +nabz(3)*(zu0(DZ(3)) - zu0(DZ(-3))) &
+           +nabz(4)*(zu0(DZ(4)) - zu0(DZ(-4)))
 
     dzu0dr(:,iz,iy,ix) = w(:)
   end do
