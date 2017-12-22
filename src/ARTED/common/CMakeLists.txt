@@ -1,6 +1,5 @@
 set(SOURCES
     total_energy.f90
-    ion_force.f90
     Exc_Cor.f90
     Hartree.f90
     Ylm_dYlm.f90
@@ -14,7 +13,9 @@ set(SOURCES
     )
 
 if (ENABLE_OPENACC)
-  set(SOURCES ${SOURCES} acc/hpsi.f90)
+  set(SOURCES ${SOURCES} acc/hpsi.f90 acc/ion_force.f90)
+else ()
+  set(SOURCES ${SOURCES} ion_force.f90)
 endif ()
 
 add_library(${ARTED_COMMON_LIB} STATIC ${SOURCES})
