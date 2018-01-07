@@ -20,6 +20,13 @@ set(CMAKE_C_FLAGS_DEBUG         "-pg")
 set(CMAKE_C_FLAGS_RELEASE       "-fastsse")
 
 
+# search CUDA package
+find_path(CUDA_TOOLKIT_ROOT_DIR "nvcc")
+get_filename_component(CUDA_TOOLKIT_ROOT_DIR "${CUDA_TOOLKIT_ROOT_DIR}/.." ABSOLUTE)
+set(CUDA_TOOLKIT_INCLUDE "${CUDA_TOOLKIT_ROOT_DIR}/include")
+set(CUDA_CUDART_LIBRARY  "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libcudart.so")
+
+
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 set(CUDA_HOST_COMPILER        "g++")
 set(CUDA_NVCC_FLAGS           "--generate-code arch=compute_35,code=compute_35 --generate-code arch=compute_60,code=compute_60 -Xptxas=-v")
