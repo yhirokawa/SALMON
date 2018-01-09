@@ -142,6 +142,83 @@ void hpsi1_rt_stencil_ker1( int                                  Nkb
   }
 }
 
+
+template<int NLX> // __launch_bounds__(128,2)
+__global__
+void hpsi1_rt_stencil_ker1_c( int                                  Nkb
+                            , const double          * __restrict__ _A
+                            , const double          * __restrict__ _B
+                            , const double          * __restrict__ _C
+                            , const double          * __restrict__ _D
+                            , const cuDoubleComplex * __restrict__ __E
+                            ,       cuDoubleComplex *              _F
+                            , int                                  PNLx
+                            , int                                  PNLy
+                            , int                                  PNLz
+                            , int                                  NLx
+                            , int                                  NLy
+                            , int                                  NLz
+                            )
+{
+  int ikb, iyz,iz,iy,ix;
+
+  ikb = blockIdx.y;
+  if ( ikb >= Nkb ) return;
+
+  const cuDoubleComplex *_E = __E + ikb * (PNLx*PNLy*PNLz);
+
+  iyz = threadIdx.x + blockDim.x * blockIdx.x;
+  iz = iyz % NLz;
+  iy = iyz / NLz;
+  if ( iy >= NLy ) return;
+
+  cuDoubleComplex val[NLX];
+  for (ix = 0; ix < NLX; ++ix)
+    val[ix] = make_cuDoubleComplex(0.0, 0.0);
+
+  int ixx;
+#pragma unroll
+  for (ix = 0; ix < NLX; ++ix) {
+    cuDoubleComplex E_ix = E(iz,iy,ix);
+
+    ixx = ix - 4; if (ixx < 0) ixx += NLX;
+    val[ixx] = val[ixx] + (-0.5 * C(4) * E_ix) - conj_swap(D(4) * E_ix);
+    if ( ix >= 8 ) F(iz,iy,ixx,ikb) = val[ixx];
+
+    ixx = ix - 3; if (ixx < 0) ixx += NLX;
+    val[ixx] = val[ixx] + (-0.5 * C(3) * E_ix) - conj_swap(D(3) * E_ix);
+    if ( ix >= NLX-1 ) F(iz,iy,ixx,ikb) = val[ixx];
+
+    ixx = ix - 2; if (ixx < 0) ixx += NLX;
+    val[ixx] = val[ixx] + (-0.5 * C(2) * E_ix) - conj_swap(D(2) * E_ix);
+    if ( ix >= NLX-1 ) F(iz,iy,ixx,ikb) = val[ixx];
+
+    ixx = ix - 1; if (ixx < 0) ixx += NLX;
+    val[ixx] = val[ixx] + (-0.5 * C(1) * E_ix) - conj_swap(D(1) * E_ix);
+    if ( ix >= NLX-1 ) F(iz,iy,ixx,ikb) = val[ixx];
+
+    ixx = ix;
+    val[ixx] = val[ixx] + (A(ikb) + B(iz,iy,ix)) * E_ix;
+    if ( ix >= NLX-1 ) F(iz,iy,ixx,ikb) = val[ixx];
+
+    ixx = ix + 1; if (ixx >= NLX) ixx -= NLX;
+    val[ixx] = val[ixx] + (-0.5 * C(1) * E_ix) + conj_swap(D(1) * E_ix);
+    if ( ix >= NLX-1 ) F(iz,iy,ixx,ikb) = val[ixx];
+
+    ixx = ix + 2; if (ixx >= NLX) ixx -= NLX;
+    val[ixx] = val[ixx] + (-0.5 * C(2) * E_ix) + conj_swap(D(2) * E_ix);
+    if ( ix >= NLX-1 ) F(iz,iy,ixx,ikb) = val[ixx];
+
+    ixx = ix + 3; if (ixx >= NLX) ixx -= NLX;
+    val[ixx] = val[ixx] + (-0.5 * C(3) * E_ix) + conj_swap(D(3) * E_ix);
+    if ( ix >= NLX-1 ) F(iz,iy,ixx,ikb) = val[ixx];
+
+    ixx = ix + 4; if (ixx >= NLX) ixx -= NLX;
+    val[ixx] = val[ixx] + (-0.5 * C(4) * E_ix) + conj_swap(D(4) * E_ix);
+    if ( ix >= NLX-1 ) F(iz,iy,ixx,ikb) = val[ixx];
+  }
+}
+
 __global__ __launch_bounds__(128,4)
 void hpsi1_rt_stencil_ker2( int                                  Nkb
                           , const double          * __restrict__ _C
@@ -249,9 +326,18 @@ void hpsi1_rt_stencil_gpu( double          *_A  // k2lap0_2(:)
 
   dim3 t1(128);
   dim3 b1(DIV_CEIL((NLy*NLz),t1.x),Nkb);
-  hpsi1_rt_stencil_ker1<8><<<b1, t1, 0, st>>>(
-    Nkb, _A, _B, _C, _D, _E, _F, PNLx, PNLy, PNLz, NLx, NLy, NLz
-  );
+  if (NLx == 20)
+    hpsi1_rt_stencil_ker1_c<20><<<b1, t1, 0, st>>>(
+      Nkb, _A, _B, _C, _D, _E, _F, PNLx, PNLy, PNLz, NLx, NLy, NLz
+    );
+  else if (NLx == 16)
+    hpsi1_rt_stencil_ker1_c<16><<<b1, t1, 0, st>>>(
+      Nkb, _A, _B, _C, _D, _E, _F, PNLx, PNLy, PNLz, NLx, NLy, NLz
+    );
+  else /* general */
+    hpsi1_rt_stencil_ker1<8><<<b1, t1, 0, st>>>(
+      Nkb, _A, _B, _C, _D, _E, _F, PNLx, PNLy, PNLz, NLx, NLy, NLz
+    );
 
   dim3 t2(128);
   dim3 b2(DIV_CEIL((NLx*NLz),t2.x),Nkb);
