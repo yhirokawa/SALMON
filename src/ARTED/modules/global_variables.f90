@@ -324,4 +324,7 @@ Module Global_Variables
 !dir$ attributes align:MEM_ALIGNED :: xk_omp,txk_omp,hxk_omp,pko_omp
 !dir$ attributes align:MEM_ALIGNED :: tpsi_omp,ttpsi_omp,htpsi_omp
 
+!dir$ attributes fastmem :: Vloc,uV,ekr_omp,iuV,a_tbl,Mps,zproj,occ,kAc
+!dir$ attributes fastmem :: Jxx,Jyy,Jzz,Jxyz,Lx,Ly,Lz
+
 End Module Global_Variables

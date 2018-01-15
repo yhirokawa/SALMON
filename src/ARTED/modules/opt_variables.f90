@@ -67,12 +67,14 @@ module opt_variables
 # define MEM_ALIGNED 32
 #endif
 
-!dir$ attributes align:MEM_ALIGNED :: lapt
-!dir$ attributes align:MEM_ALIGNED :: zhtpsi,zttpsi
-!dir$ attributes align:MEM_ALIGNED :: zrhotmp
-!dir$ attributes align:MEM_ALIGNED :: zJxyz,zKxyz
-!dir$ attributes align:MEM_ALIGNED :: zcx,zcy,zcz
-!dir$ attributes align:MEM_ALIGNED :: modx,mody,modz
+!dir$ attributes          align:MEM_ALIGNED :: lapt
+!dir$ attributes fastmem, align:MEM_ALIGNED :: zhtpsi,zttpsi
+!dir$ attributes fastmem, align:MEM_ALIGNED :: zrhotmp
+!dir$ attributes fastmem, align:MEM_ALIGNED :: zJxyz,zKxyz
+!dir$ attributes fastmem, align:MEM_ALIGNED :: zcx,zcy,zcz
+!dir$ attributes fastmem, align:MEM_ALIGNED :: modx,mody,modz
+!dir$ attributes fastmem, align:MEM_ALIGNED :: nprojector,idx_proj,idx_lma,pseudo_start_idx
+!dir$ attributes fastmem, align:MEM_ALIGNED :: spseudo,dpseudo
 
 #ifdef ARTED_STENCIL_ORIGIN
 !dir$ attributes align:MEM_ALIGNED :: zifdx,zifdy,zifdz
