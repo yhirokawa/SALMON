@@ -296,6 +296,74 @@ void hpsi1_rt_stencil_ker2( int                                  Nkb
   }
 }
 
+__global__ __launch_bounds__(128)
+void hpsi1_rt_stencil_full( int                                  Nkb
+                          , const double          * __restrict__ _A
+                          , const double          * __restrict__ _B
+                          , const double          * __restrict__ _C
+                          , const double          * __restrict__ _D
+                          , const cuDoubleComplex * __restrict__ __E
+                          ,       cuDoubleComplex *              _F
+                          , int                                  PNLx
+                          , int                                  PNLy
+                          , int                                  PNLz
+                          , int                                  NLx
+                          , int                                  NLy
+                          , int                                  NLz
+                          , const int             * __restrict__ modx
+                          , const int             * __restrict__ mody
+                          , const int             * __restrict__ modz
+                          )
+{
+  const int ikb = blockIdx.y;
+
+  if(ikb < Nkb)
+  {
+    const cuDoubleComplex *_E = __E + ikb * (PNLx*PNLy*PNLz);
+
+    const int iyz = threadIdx.x + blockDim.x * blockIdx.x;
+    const int iz = iyz % NLz;
+    const int iy = iyz / NLz;
+
+    if(iy < NLy)
+    {
+      for(int ix = 0; ix < NLx ; ++ix)
+      {
+        cuDoubleComplex v, w;
+
+        v = C( 9) * (E_IDZ(1) + E_IDZ(-1))
+          + C(10) * (E_IDZ(2) + E_IDZ(-2))
+          + C(11) * (E_IDZ(3) + E_IDZ(-3))
+          + C(12) * (E_IDZ(4) + E_IDZ(-4));
+        w = D( 9) * (E_IDZ(1) - E_IDZ(-1))
+          + D(10) * (E_IDZ(2) - E_IDZ(-2))
+          + D(11) * (E_IDZ(3) - E_IDZ(-3))
+          + D(12) * (E_IDZ(4) - E_IDZ(-4));
+
+        v = C( 5) * (E_IDY(1) + E_IDY(-1))
+          + C( 6) * (E_IDY(2) + E_IDY(-2))
+          + C( 7) * (E_IDY(3) + E_IDY(-3))
+          + C( 8) * (E_IDY(4) + E_IDY(-4)) + v;
+        w = D( 5) * (E_IDY(1) - E_IDY(-1))
+          + D( 6) * (E_IDY(2) - E_IDY(-2))
+          + D( 7) * (E_IDY(3) - E_IDY(-3))
+          + D( 8) * (E_IDY(4) - E_IDY(-4)) + w;
+
+        v = C( 1) * (E_IDX(1) + E_IDX(-1))
+          + C( 2) * (E_IDX(2) + E_IDX(-2))
+          + C( 3) * (E_IDX(3) + E_IDX(-3))
+          + C( 4) * (E_IDX(4) + E_IDX(-4)) + v;
+        w = D( 1) * (E_IDX(1) - E_IDX(-1))
+          + D( 2) * (E_IDX(2) - E_IDX(-2))
+          + D( 3) * (E_IDX(3) - E_IDX(-3))
+          + D( 4) * (E_IDX(4) - E_IDX(-4)) + w;
+
+        F(iz,iy,ix,ikb) = (A(ikb) + B(iz,iy,ix)) * E(iz,iy,ix) - 0.5 * v - conj_swap(w);
+      }
+    }
+  }
+}
+
 /*
  *
  */
@@ -324,6 +392,7 @@ void hpsi1_rt_stencil_gpu( double          *_A  // k2lap0_2(:)
 
   int Nkb = IKB_e - IKB_s + 1;
 
+#ifdef USE_OPT
   dim3 t1(128);
   dim3 b1(DIV_CEIL((NLy*NLz),t1.x),Nkb);
   if (NLx == 20)
@@ -344,6 +413,14 @@ void hpsi1_rt_stencil_gpu( double          *_A  // k2lap0_2(:)
   hpsi1_rt_stencil_ker2<<<b2, t2, 0, st>>>(
     Nkb, _C, _D, _E, _F, PNLx, PNLy, PNLz, NLx, NLy, NLz, modz
   );
+#else
+  dim3 t1(128);
+  dim3 b1(DIV_CEIL((NLy*NLz),t1.x),Nkb);
+  hpsi1_rt_stencil_full<<<b1, t1, 0, st>>>(
+    Nkb, _A, _B, _C, _D, _E, _F, PNLx, PNLy, PNLz, NLx, NLy, NLz, modx, mody, modz
+  );
+#endif
+
   CUDA_CALL(cudaStreamSynchronize(st));
 }
 
