@@ -53,6 +53,7 @@ subroutine arted
   nproc_size_tdks  = nproc_size_global
 
   call initialize
+  !call init_cuda
 
   if(restart_option == 'new')then
     select case(iflag_calc_mode)

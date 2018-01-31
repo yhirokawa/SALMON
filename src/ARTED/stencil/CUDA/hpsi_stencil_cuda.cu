@@ -296,7 +296,7 @@ void hpsi1_rt_stencil_ker2( int                                  Nkb
   }
 }
 
-__global__ __launch_bounds__(128)
+__global__ //__launch_bounds__(128,4)
 void hpsi1_rt_stencil_full( int                                  Nkb
                           , const double          * __restrict__ _A
                           , const double          * __restrict__ _B
@@ -392,6 +392,7 @@ void hpsi1_rt_stencil_gpu( double          *_A  // k2lap0_2(:)
 
   int Nkb = IKB_e - IKB_s + 1;
 
+//#define USE_OPT
 #ifdef USE_OPT
   dim3 t1(128);
   dim3 b1(DIV_CEIL((NLy*NLz),t1.x),Nkb);
@@ -448,5 +449,25 @@ extern "C" {
                         , *PNLx, *PNLy, *PNLz
                         , *NLx, *NLy, *NLz
                         , modx, mody, modz );
+  }
+
+#define TEST_CUDA_SMEM_SIZE "TEST_CUDA_SMEM_SIZE"
+  void set_cuda_l1cache_size_()
+  {
+    char *s = getenv(TEST_CUDA_SMEM_SIZE);
+    if (s != NULL) {
+      int v = atoi(s);
+      printf("set smem size is %d%\n", v);
+      CUDA_CALL(cudaFuncSetAttribute(hpsi1_rt_stencil_ker1_c<20>, cudaFuncAttributePreferredSharedMemoryCarveout, v));
+      CUDA_CALL(cudaFuncSetAttribute(hpsi1_rt_stencil_ker1_c<16>, cudaFuncAttributePreferredSharedMemoryCarveout, v));
+      CUDA_CALL(cudaFuncSetAttribute(hpsi1_rt_stencil_ker1<8>, cudaFuncAttributePreferredSharedMemoryCarveout, v));
+      CUDA_CALL(cudaFuncSetAttribute(hpsi1_rt_stencil_ker2, cudaFuncAttributePreferredSharedMemoryCarveout, v));
+      CUDA_CALL(cudaFuncSetAttribute(hpsi1_rt_stencil_full, cudaFuncAttributePreferredSharedMemoryCarveout, v));
+    }
+  }
+
+  void init_cuda_()
+  {
+    //set_cuda_l1cache_size_();
   }
 }
