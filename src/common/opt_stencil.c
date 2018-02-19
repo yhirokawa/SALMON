@@ -42,9 +42,9 @@ void opt_stencil_body_c_( int            const           PNLx
                         , int            const           NLx
                         , int            const           NLy
                         , int            const           NLz
-                        , int            const* restrict idx
-                        , int            const* restrict idy
-                        , int            const* restrict idz
+                        , int            const* restrict /* idx */
+                        , int            const* restrict /* idy */
+                        , int            const* restrict /* idz */
                         , double         const           A
                         , double         const           B[restrict NLx][NLy][NLz]
                         , double         const           C[restrict 12]
