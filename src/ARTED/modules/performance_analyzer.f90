@@ -167,6 +167,77 @@ contains
     call comm_sync_all
   end subroutine
 
+  subroutine write_timerlog_all(filename)
+    use global_variables
+    use salmon_parallel
+    use salmon_communication
+    use misc_routines, only: gen_logfilename
+    use math_constants
+    use timer
+    implicit none
+    character(*),intent(in) :: filename
+
+    integer,parameter      :: iounit = 999
+    integer,parameter      :: LOG_SIZE=12
+    character(*),parameter :: f = "(A,F12.4)"
+
+    real(8) :: src(LOG_SIZE)
+
+#ifdef ARTED_USE_FORTRAN2008
+    write (process_directory,'(A,A,I5.5,A)') trim(directory),'/work_p',nproc_id_global,'/'
+#else
+    process_directory = trim(directory)
+#endif
+    open(iounit, file=gen_filename(filename, nproc_id_global))
+
+    src( 1) = timer_get(LOG_DT_EVOLVE)
+    src( 2) = timer_get(LOG_HPSI)
+    src( 3) = timer_get(LOG_PSI_RHO)
+    src( 4) = timer_get(LOG_HARTREE)
+    src( 5) = timer_get(LOG_CURRENT)
+    src( 6) = timer_get(LOG_TOTAL_ENERGY)
+    src( 7) = timer_get(LOG_ION_FORCE)
+    src( 8) = timer_get(LOG_DT_EVOLVE_AC)
+    src( 9) = timer_get(LOG_ANA_RT_USEGS)
+    src(10) = timer_get(LOG_OTHER)
+    src(11) = timer_get(LOG_ALLREDUCE)
+    src(12) = timer_get(LOG_DYNAMICS)
+
+    write (iounit,'(A,I)')      'Process ',nproc_id_global
+    write (iounit,'(A,4(A12))') 'Function  ','[sec]'
+    write (iounit,f) 'dt_evolve   ',src( 1)
+    write (iounit,f) 'hpsi        ',src( 2)
+    write (iounit,f) 'psi_rho     ',src( 3)
+    write (iounit,f) 'hartree     ',src( 4)
+    write (iounit,f) 'current     ',src( 5)
+    write (iounit,f) 'total_energy',src( 6)
+    write (iounit,f) 'ion_force   ',src( 7)
+    write (iounit,f) 'dt_evolve_ac',src( 8)
+    write (iounit,f) 'ana_RT_useGS',src( 9)
+    write (iounit,f) 'other       ',src(10)
+    write (iounit,f) 'allreduce   ',src(11)
+    write (iounit,f) 'dynamics    ',src(12)
+
+    close(iounit)
+    call comm_sync_all
+  contains
+    function gen_filename(base, procid)
+      use salmon_global
+      use global_variables, only: process_directory
+      implicit none
+      character(*), intent(in)      :: base
+      integer, intent(in), optional :: procid
+      character(128)                :: gen_filename
+      character(32) :: cMyrank
+      if (present(procid)) then
+        write(cMyrank,'(I5.5)') procid
+        gen_filename = trim(process_directory)//trim(base)//'.p'//trim(cMyrank)
+      else
+        gen_filename = trim(directory)//trim(base)
+      end if
+    end function
+  end subroutine
+
   subroutine summation_threads(lgflops)
     use global_variables, only: NUMBER_THREADS, functional, propagator
     use timer

@@ -523,6 +523,7 @@ subroutine tddft_maxwell_ms
     call timer_show_min ('Allreduce time     :', LOG_ALLREDUCE)
   end if
   call write_performance(trim(directory)//'ms_performance')
+  call write_timerlog_all(trim(directory)//'timerlog')
 
   if(comm_is_root(nproc_id_global)) write(*,*) 'This is the start of write section'
   call timer_begin(LOG_IO)

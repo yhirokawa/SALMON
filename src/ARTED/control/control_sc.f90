@@ -430,6 +430,7 @@ subroutine tddft_sc
     call timer_show_min ('Allreduce time     :', LOG_ALLREDUCE)
   end if
   call write_performance(trim(directory)//'sc_performance')
+  call write_timerlog_all(trim(directory)//'timerlog')
 
   if(comm_is_root(nproc_id_global)) then
     ! close(7) !! TODO: Remove output of "_t.out" file future
