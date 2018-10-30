@@ -125,8 +125,12 @@ contains
   end subroutine
 
   subroutine timer_begin(id)
+    use salmon_communication, only: comm_sync_all
     implicit none
     integer,intent(in) :: id
+    if (id == LOG_ALLREDUCE) then
+      call comm_sync_all()
+    end if
     log_temp(id) = get_wtime()
   end subroutine
 
